@@ -47,6 +47,41 @@ function loadTokens() {
   }
 }
 
+// Function to save tokens
+function saveTokens(accessToken, refreshToken) {
+  const tokenData = {
+    accessToken,
+    refreshToken,
+    timestamp: new Date().toISOString()
+  };
+  fs.writeFileSync(TOKENS_FILE, JSON.stringify(tokenData, null, 2));
+  console.error('💾 Updated tokens saved to whoop-tokens.json');
+}
+
+// Function to refresh access token using refresh token
+async function refreshAccessToken(refreshToken) {
+  try {
+    console.error('🔄 Attempting to refresh access token...');
+    const { WhoopApiClient } = await import('./dist/whoop-api.js');
+    const client = new WhoopApiClient(WHOOP_CONFIG);
+
+    const result = await client.refreshToken(refreshToken);
+    console.error('✅ Token refresh successful!');
+    console.error('⏰ New token expires in:', result.expires_in, 'seconds');
+
+    // Save the new tokens
+    saveTokens(result.access_token, result.refresh_token);
+
+    return {
+      accessToken: result.access_token,
+      refreshToken: result.refresh_token
+    };
+  } catch (error) {
+    console.error('❌ Token refresh failed:', error.message);
+    return null;
+  }
+}
+
 // Function to test if tokens are still valid
 async function testTokens(accessToken) {
   try {
@@ -71,16 +106,28 @@ async function startMcpServer() {
   console.error('');
 
   // Load saved tokens
-  const tokenData = loadTokens();
+  let tokenData = loadTokens();
   if (!tokenData) {
     process.exit(1);
   }
 
   // Test if tokens are still valid
-  const isValid = await testTokens(tokenData.accessToken);
+  let isValid = await testTokens(tokenData.accessToken);
+
+  // If access token invalid but we have refresh token, try to refresh
+  if (!isValid && tokenData.refreshToken) {
+    console.error('');
+    const newTokens = await refreshAccessToken(tokenData.refreshToken);
+    if (newTokens) {
+      tokenData.accessToken = newTokens.accessToken;
+      tokenData.refreshToken = newTokens.refreshToken;
+      isValid = true;
+    }
+  }
+
   if (!isValid) {
     console.error('');
-    console.error('🔄 Please re-authenticate by running:');
+    console.error('🔄 Token expired. Please re-authenticate by running:');
     console.error('   cd ' + __dirname + ' && node src/auth-app.js');
     process.exit(1);
   }

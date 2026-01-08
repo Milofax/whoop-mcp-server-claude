@@ -3,7 +3,7 @@
 import http from 'http';
 import url from 'url';
 import { spawn } from 'child_process';
-import { WhoopApiClient } from './dist/whoop-api.js';
+import { WhoopApiClient } from '../dist/whoop-api.js';
 
 const PORT = 3000;
 
