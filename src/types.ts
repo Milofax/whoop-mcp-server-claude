@@ -152,6 +152,22 @@ export interface WhoopWorkoutCollection {
   next_token?: string;
 }
 
+// OAuth token response from WHOOP API
+export interface OAuthTokenResponse {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  token_type: string;
+  scope: string;
+}
+
+// Stored token data for file persistence
+export interface StoredTokenData {
+  accessToken: string;
+  refreshToken: string;
+  timestamp: string;
+}
+
 // MCP Server Types
 export interface WhoopApiConfig {
   clientId: string;
@@ -166,3 +182,53 @@ export interface PaginationParams {
   end?: string;
   nextToken?: string;
 }
+
+// SEAM: Auth provider interface — new auth methods plug in here
+export interface IAuthProvider {
+  getAuthorizationUrl(state?: string): string;
+  exchangeCodeForToken(code: string): Promise<OAuthTokenResponse>;
+  refreshToken(refreshToken: string): Promise<OAuthTokenResponse>;
+}
+
+// SEAM: Token storage interface — swap file for keychain/1Password later
+export interface ITokenStorage {
+  load(): Promise<StoredTokenData | null>;
+  save(data: StoredTokenData): Promise<void>;
+}
+
+/**
+ * All 16 WHOOP tool names as a const array.
+ *
+ * ID type inconsistency note (per WHOOP API):
+ * - cycleId is a number
+ * - sleepId and workoutId are strings
+ * This is intentional and matches the WHOOP API contract.
+ */
+export const WHOOP_TOOL_NAMES = [
+  'whoop-get-user-profile',
+  'whoop-get-user-body-measurements',
+  'whoop-revoke-user-access',
+  'whoop-get-cycle-by-id',
+  'whoop-get-cycle-collection',
+  'whoop-get-sleep-for-cycle',
+  'whoop-get-recovery-collection',
+  'whoop-get-recovery-for-cycle',
+  'whoop-get-sleep-by-id',
+  'whoop-get-sleep-collection',
+  'whoop-get-workout-by-id',
+  'whoop-get-workout-collection',
+  'whoop-get-authorization-url',
+  'whoop-exchange-code-for-token',
+  'whoop-refresh-token',
+  'whoop-set-access-token',
+] as const;
+
+export type WhoopToolName = typeof WHOOP_TOOL_NAMES[number];
+
+// Auth-bypass tools that don't require a valid access token
+export const AUTH_BYPASS_TOOLS: ReadonlySet<WhoopToolName> = new Set([
+  'whoop-set-access-token',
+  'whoop-get-authorization-url',
+  'whoop-exchange-code-for-token',
+  'whoop-refresh-token',
+]);

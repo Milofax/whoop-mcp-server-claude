@@ -11,33 +11,42 @@ import {
   WhoopSleepCollection,
   WhoopWorkout,
   WhoopWorkoutCollection,
-  PaginationParams
+  PaginationParams,
+  OAuthTokenResponse,
 } from './types.js';
+import { buildPaginationUrl } from './utils/pagination.js';
 
 export class WhoopApiClient {
   private client: AxiosInstance;
+  private oauthClient: AxiosInstance;
   private config: WhoopApiConfig;
 
   constructor(config: WhoopApiConfig) {
     this.config = config;
     this.client = axios.create({
       baseURL: 'https://api.prod.whoop.com/developer/v2',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
     });
 
-    // Add request interceptor to include access token
-    this.client.interceptors.request.use((config) => {
+    this.oauthClient = axios.create({
+      baseURL: 'https://api.prod.whoop.com/oauth/oauth2',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+
+    this.client.interceptors.request.use((reqConfig) => {
       if (this.config.accessToken) {
-        config.headers.Authorization = `Bearer ${this.config.accessToken}`;
+        reqConfig.headers.Authorization = `Bearer ${this.config.accessToken}`;
       }
-      return config;
+      return reqConfig;
     });
   }
 
-  setAccessToken(accessToken: string) {
+  setAccessToken(accessToken: string): void {
     this.config.accessToken = accessToken;
+  }
+
+  hasToken(): boolean {
+    return !!this.config.accessToken;
   }
 
   // User endpoints
@@ -62,14 +71,7 @@ export class WhoopApiClient {
   }
 
   async getCycleCollection(params?: PaginationParams): Promise<WhoopCycleCollection> {
-    const queryParams = new URLSearchParams();
-    
-    if (params?.limit) queryParams.append('limit', params.limit.toString());
-    if (params?.start) queryParams.append('start', params.start);
-    if (params?.end) queryParams.append('end', params.end);
-    if (params?.nextToken) queryParams.append('nextToken', params.nextToken);
-
-    const url = `/cycle${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    const url = buildPaginationUrl('/cycle', params);
     const response = await this.client.get(url);
     return response.data;
   }
@@ -81,14 +83,7 @@ export class WhoopApiClient {
 
   // Recovery endpoints
   async getRecoveryCollection(params?: PaginationParams): Promise<WhoopRecoveryCollection> {
-    const queryParams = new URLSearchParams();
-    
-    if (params?.limit) queryParams.append('limit', params.limit.toString());
-    if (params?.start) queryParams.append('start', params.start);
-    if (params?.end) queryParams.append('end', params.end);
-    if (params?.nextToken) queryParams.append('nextToken', params.nextToken);
-
-    const url = `/recovery${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    const url = buildPaginationUrl('/recovery', params);
     const response = await this.client.get(url);
     return response.data;
   }
@@ -105,14 +100,7 @@ export class WhoopApiClient {
   }
 
   async getSleepCollection(params?: PaginationParams): Promise<WhoopSleepCollection> {
-    const queryParams = new URLSearchParams();
-    
-    if (params?.limit) queryParams.append('limit', params.limit.toString());
-    if (params?.start) queryParams.append('start', params.start);
-    if (params?.end) queryParams.append('end', params.end);
-    if (params?.nextToken) queryParams.append('nextToken', params.nextToken);
-
-    const url = `/activity/sleep${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    const url = buildPaginationUrl('/activity/sleep', params);
     const response = await this.client.get(url);
     return response.data;
   }
@@ -124,14 +112,7 @@ export class WhoopApiClient {
   }
 
   async getWorkoutCollection(params?: PaginationParams): Promise<WhoopWorkoutCollection> {
-    const queryParams = new URLSearchParams();
-    
-    if (params?.limit) queryParams.append('limit', params.limit.toString());
-    if (params?.start) queryParams.append('start', params.start);
-    if (params?.end) queryParams.append('end', params.end);
-    if (params?.nextToken) queryParams.append('nextToken', params.nextToken);
-
-    const url = `/activity/workout${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    const url = buildPaginationUrl('/activity/workout', params);
     const response = await this.client.get(url);
     return response.data;
   }
@@ -142,17 +123,13 @@ export class WhoopApiClient {
       client_id: this.config.clientId,
       redirect_uri: this.config.redirectUri,
       response_type: 'code',
-      scope: 'read:recovery read:cycles read:workout read:sleep read:profile read:body_measurement'
+      scope: 'offline read:recovery read:cycles read:workout read:sleep read:profile read:body_measurement',
     });
-    
-    if (state) {
-      params.append('state', state);
-    }
-    
+    if (state) params.append('state', state);
     return `https://api.prod.whoop.com/oauth/oauth2/auth?${params.toString()}`;
   }
 
-  async exchangeCodeForToken(code: string): Promise<{ access_token: string; refresh_token: string; expires_in: number }> {
+  async exchangeCodeForToken(code: string): Promise<OAuthTokenResponse> {
     const formData = new URLSearchParams();
     formData.append('client_id', this.config.clientId);
     formData.append('client_secret', this.config.clientSecret);
@@ -160,28 +137,18 @@ export class WhoopApiClient {
     formData.append('grant_type', 'authorization_code');
     formData.append('redirect_uri', this.config.redirectUri);
 
-    const response = await axios.post('https://api.prod.whoop.com/oauth/oauth2/token', formData, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      }
-    });
-
+    const response = await this.oauthClient.post('/token', formData);
     return response.data;
   }
 
-  async refreshToken(refreshToken: string): Promise<{ access_token: string; refresh_token: string; expires_in: number }> {
+  async refreshToken(refreshToken: string): Promise<OAuthTokenResponse> {
     const formData = new URLSearchParams();
     formData.append('client_id', this.config.clientId);
     formData.append('client_secret', this.config.clientSecret);
     formData.append('refresh_token', refreshToken);
     formData.append('grant_type', 'refresh_token');
 
-    const response = await axios.post('https://api.prod.whoop.com/oauth/oauth2/token', formData, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      }
-    });
-
+    const response = await this.oauthClient.post('/token', formData);
     return response.data;
   }
 }

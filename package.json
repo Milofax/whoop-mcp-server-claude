@@ -3,30 +3,31 @@
   "version": "1.0.0",
   "description": "MCP server for WHOOP API integration",
   "main": "dist/index.js",
-  "bin": {
-    "whoop-mcp-server": "./whoop-mcp-server.js"
-  },
   "type": "module",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "watch": "tsx watch src/index.ts",
-    "test": "node dist/test.js",
-    "auth": "node auth-app.js",
-    "start-mcp": "node start-mcp-server.js"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "auth": "tsx src/auth-app.ts",
+    "start-mcp": "tsx src/start-mcp-server.ts"
   },
   "keywords": ["mcp", "whoop", "api", "fitness", "health"],
   "author": "Your Name",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^0.4.0",
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "axios": "^1.6.0",
     "dotenv": "^16.3.1"
   },
   "devDependencies": {
     "@types/node": "^20.8.0",
+    "@vitest/coverage-v8": "^3.0.0",
     "tsx": "^4.6.0",
-    "typescript": "^5.2.0"
+    "typescript": "^5.2.0",
+    "vitest": "^3.0.0"
   }
 }
