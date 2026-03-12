@@ -5,7 +5,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { WhoopApiClient } from './whoop-api.js';
-import type { WhoopApiConfig, WhoopToolName } from './types.js';
+import type { WhoopApiConfig, WhoopToolName, ITokenStorage } from './types.js';
 import { AUTH_BYPASS_TOOLS, WHOOP_TOOL_NAMES } from './types.js';
 import { getToolDefinitions } from './schemas.js';
 import { dispatchTool } from './tool-registry.js';
@@ -15,8 +15,8 @@ export class WhoopMcpServer {
   private server: Server;
   private whoopClient: WhoopApiClient;
 
-  constructor(config: WhoopApiConfig) {
-    this.whoopClient = new WhoopApiClient(config);
+  constructor(config: WhoopApiConfig, tokenStorage?: ITokenStorage) {
+    this.whoopClient = new WhoopApiClient(config, tokenStorage);
 
     this.server = new Server(
       { name: 'whoop-mcp-server', version: '1.0.0' },

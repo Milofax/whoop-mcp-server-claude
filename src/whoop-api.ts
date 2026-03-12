@@ -13,6 +13,7 @@ import {
   WhoopWorkoutCollection,
   PaginationParams,
   OAuthTokenResponse,
+  ITokenStorage,
 } from './types.js';
 import { buildPaginationUrl } from './utils/pagination.js';
 
@@ -20,9 +21,12 @@ export class WhoopApiClient {
   private client: AxiosInstance;
   private oauthClient: AxiosInstance;
   private config: WhoopApiConfig;
+  private tokenStorage: ITokenStorage | null = null;
+  private isRefreshing = false;
 
-  constructor(config: WhoopApiConfig) {
+  constructor(config: WhoopApiConfig, tokenStorage?: ITokenStorage) {
     this.config = config;
+    this.tokenStorage = tokenStorage ?? null;
     this.client = axios.create({
       baseURL: 'https://api.prod.whoop.com/developer/v2',
       headers: { 'Content-Type': 'application/json' },
@@ -39,6 +43,45 @@ export class WhoopApiClient {
       }
       return reqConfig;
     });
+
+    // Auto-refresh on 401
+    this.client.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const originalRequest = error.config;
+        if (
+          error.response?.status === 401 &&
+          !originalRequest._retry &&
+          this.config.refreshToken &&
+          !this.isRefreshing
+        ) {
+          originalRequest._retry = true;
+          this.isRefreshing = true;
+          try {
+            console.error('Auto-refreshing expired WHOOP token...');
+            const result = await this.refreshToken(this.config.refreshToken);
+            this.setAccessToken(result.access_token);
+            this.config.refreshToken = result.refresh_token;
+            if (this.tokenStorage) {
+              await this.tokenStorage.save({
+                accessToken: result.access_token,
+                refreshToken: result.refresh_token,
+                timestamp: new Date().toISOString(),
+              });
+              console.error('Auto-refresh successful, tokens saved.');
+            }
+            originalRequest.headers.Authorization = `Bearer ${result.access_token}`;
+            return this.client(originalRequest);
+          } catch (refreshError) {
+            console.error('Auto-refresh failed:', refreshError instanceof Error ? refreshError.message : refreshError);
+            return Promise.reject(refreshError);
+          } finally {
+            this.isRefreshing = false;
+          }
+        }
+        return Promise.reject(error);
+      },
+    );
   }
 
   setAccessToken(accessToken: string): void {

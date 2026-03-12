@@ -63,25 +63,28 @@ async function refreshAccessToken(refreshToken: string): Promise<StoredTokenData
 async function startMcpServer(): Promise<void> {
   console.error('Starting WHOOP MCP Server...');
 
-  const server = new WhoopMcpServer(config);
   const tokenStorage = new FileTokenStorage(TOKENS_FILE);
   let tokenData = await tokenStorage.load();
   let isValid = false;
 
   if (tokenData) {
     console.error('Loaded saved tokens from', TOKENS_FILE);
+    config.refreshToken = tokenData.refreshToken;
     isValid = await testTokens(tokenData.accessToken);
 
     if (!isValid && tokenData.refreshToken) {
       const refreshed = await refreshAccessToken(tokenData.refreshToken);
       if (refreshed) {
         tokenData = refreshed;
+        config.refreshToken = refreshed.refreshToken;
         isValid = true;
       }
     }
   } else {
     console.error('No saved tokens found. Run auth first: npm run auth');
   }
+
+  const server = new WhoopMcpServer(config, tokenStorage);
 
   if (isValid && tokenData) {
     console.error('Starting MCP server with valid tokens');

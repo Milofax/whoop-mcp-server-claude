@@ -174,6 +174,7 @@ export interface WhoopApiConfig {
   clientSecret: string;
   redirectUri: string;
   accessToken?: string;
+  refreshToken?: string;
 }
 
 export interface PaginationParams {
