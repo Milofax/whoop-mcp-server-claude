@@ -88,6 +88,14 @@ export class WhoopApiClient {
     this.config.accessToken = accessToken;
   }
 
+  getAccessToken(): string | undefined {
+    return this.config.accessToken;
+  }
+
+  getRefreshToken(): string | undefined {
+    return this.config.refreshToken;
+  }
+
   hasToken(): boolean {
     return !!this.config.accessToken;
   }

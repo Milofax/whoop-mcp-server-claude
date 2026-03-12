@@ -25,12 +25,17 @@ if (!config.clientId || !config.clientSecret) {
 
 const TOKENS_FILE = path.join(__dirname, '..', 'whoop-tokens.json');
 
-async function testTokens(accessToken: string): Promise<boolean> {
+async function testTokens(accessToken: string, tokenStorage: FileTokenStorage): Promise<boolean> {
   try {
-    const client = new WhoopApiClient(config);
-    client.setAccessToken(accessToken);
+    const client = new WhoopApiClient({ ...config, accessToken }, tokenStorage);
     const profile = await client.getUserProfile();
     console.error('Access token valid. User:', profile.first_name, profile.last_name);
+    // Sync back any tokens updated by auto-refresh interceptor
+    if (client.getAccessToken() !== accessToken) {
+      config.accessToken = client.getAccessToken();
+      config.refreshToken = client.getRefreshToken();
+      console.error('Tokens were auto-refreshed during validation');
+    }
     return true;
   } catch {
     console.error('Access token invalid or expired');
@@ -70,12 +75,12 @@ async function startMcpServer(): Promise<void> {
   if (tokenData) {
     console.error('Loaded saved tokens from', TOKENS_FILE);
     config.refreshToken = tokenData.refreshToken;
-    isValid = await testTokens(tokenData.accessToken);
+    isValid = await testTokens(tokenData.accessToken, tokenStorage);
 
     if (!isValid && tokenData.refreshToken) {
       const refreshed = await refreshAccessToken(tokenData.refreshToken);
       if (refreshed) {
-        tokenData = refreshed;
+        config.accessToken = refreshed.accessToken;
         config.refreshToken = refreshed.refreshToken;
         isValid = true;
       }
@@ -86,9 +91,8 @@ async function startMcpServer(): Promise<void> {
 
   const server = new WhoopMcpServer(config, tokenStorage);
 
-  if (isValid && tokenData) {
+  if (isValid) {
     console.error('Starting MCP server with valid tokens');
-    server.setAccessToken(tokenData.accessToken);
   } else {
     console.error('Starting MCP server WITHOUT valid tokens. Auth tools available, data tools will return auth errors.');
   }
