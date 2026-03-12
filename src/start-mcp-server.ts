@@ -74,6 +74,7 @@ async function startMcpServer(): Promise<void> {
 
   if (tokenData) {
     console.error('Loaded saved tokens from', TOKENS_FILE);
+    config.accessToken = tokenData.accessToken;
     config.refreshToken = tokenData.refreshToken;
     isValid = await testTokens(tokenData.accessToken, tokenStorage);
 
